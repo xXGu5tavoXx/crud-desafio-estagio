@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRUD de Produtos - Desafio Estágio</title>
+    <style>
+        /* CSS BÁSICO PARA ESTILIZAÇÃO */
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
+        .container { max-width: 1000px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }
+        h1 { text-align: center; color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
+        th { background-color: #007bff; color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .actions button { margin-right: 5px; padding: 5px 10px; cursor: pointer; border: none; border-radius: 4px; }
+        .actions .edit { background-color: #ffc107; color: #333; }
+        .actions .delete { background-color: #dc3545; color: white; }
+        .form-container { margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 4px; background-color: #e9ecef; }
+        .form-container input, .form-container textarea { width: calc(100% - 22px); padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        .form-container button { padding: 10px 15px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .search-container { margin-bottom: 20px; }
+        .error-message { color: red; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gerenciamento de Produtos</h1>
+
+        <!-- Formulário de Criação/Edição -->
+        <div class="form-container">
+            <h2><span id="form-title">Criar Novo Produto</span></h2>
+            <form id="product-form">
+                <input type="hidden" id="product-id" value="">
+                <input type="text" id="nome" placeholder="Nome do Produto" required>
+                <textarea id="descricao" placeholder="Descrição (Opcional)"></textarea>
+                <input type="number" id="preco" placeholder="Preço" step="0.01" required>
+                <input type="number" id="quantidade" placeholder="Quantidade" required>
+                <button type="submit" id="submit-button">Salvar Produto</button>
+                <button type="button" id="cancel-button" style="display: none;">Cancelar Edição</button>
+                <div id="form-errors" class="error-message"></div>
+            </form>
+        </div>
+
+        <!-- Pesquisa -->
+        <div class="search-container">
+            <input type="text" id="search-input" placeholder="Buscar produto por nome...">
+            <button id="search-button">Buscar</button>
+            <button type="button" id="clear-search-button">Limpar Busca</button>
+        </div>
+
+        <!-- Tabela de Produtos -->
+        <h2>Lista de Produtos</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Descrição</th>
+                    <th>Preço</th>
+                    <th>Quantidade</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="product-list">
+                <!-- Produtos serão inseridos aqui via JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // URL base da API (assumindo que o Django está rodando na mesma origem)
+        const API_URL = '/api/produtos/';
+        const FORM = document.getElementById('product-form');
+        const PRODUCT_LIST = document.getElementById('product-list');
+        const FORM_TITLE = document.getElementById('form-title');
+        const SUBMIT_BUTTON = document.getElementById('submit-button');
+        const CANCEL_BUTTON = document.getElementById('cancel-button');
+        const FORM_ERRORS = document.getElementById('form-errors');
+        const SEARCH_INPUT = document.getElementById('search-input');
+        const SEARCH_BUTTON = document.getElementById('search-button');
+        const CLEAR_SEARCH_BUTTON = document.getElementById('clear-search-button');
+
+        // Função para obter o token CSRF do cookie (necessário para POST, PUT, DELETE no Django)
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    // Does this cookie string begin with the name we want?
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        // O token CSRF é necessário para requisições que modificam dados (POST, PUT, DELETE)
+        const CSRF_TOKEN = getCookie('csrftoken');
+
+        // Função para exibir erros de validação
+        function displayErrors(errors) {
+            FORM_ERRORS.innerHTML = '';
+            let errorHtml = '<ul>';
+            for (const key in errors) {
+                errorHtml += `<li>**${key.toUpperCase()}**: ${errors[key]}</li>`;
+            }
+            errorHtml += '</ul>';
+            FORM_ERRORS.innerHTML = errorHtml;
+        }
+
+        // Função para limpar o formulário
+        function clearForm() {
+            FORM.reset();
+            document.getElementById('product-id').value = '';
+            FORM_TITLE.textContent = 'Criar Novo Produto';
+            SUBMIT_BUTTON.textContent = 'Salvar Produto';
+            CANCEL_BUTTON.style.display = 'none';
+            FORM_ERRORS.innerHTML = '';
+        }
+
+        // Função para carregar os produtos na tabela
+        function loadProducts(url = API_URL) {
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    PRODUCT_LIST.innerHTML = '';
+                    if (data.length === 0) {
+                        PRODUCT_LIST.innerHTML = '<tr><td colspan="6" style="text-align: center;">Nenhum produto encontrado.</td></tr>';
+                        return;
+                    }
+                    data.forEach(product => {
+                        const row = PRODUCT_LIST.insertRow();
+                        row.innerHTML = `
+                            <td>${product.id}</td>
+                            <td>${product.nome}</td>
+                            <td>${product.descricao || '-'}</td>
+                            <td>R$ ${parseFloat(product.preco).toFixed(2)}</td>
+                            <td>${product.quantidade}</td>
+                            <td class="actions">
+                                <button class="edit" data-id="${product.id}" data-nome="${product.nome}" data-descricao="${product.descricao}" data-preco="${product.preco}" data-quantidade="${product.quantidade}">Editar</button>
+                                <button class="delete" data-id="${product.id}">Excluir</button>
+                            </td>
+                        `;
+                    });
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar produtos:', error);
+                    PRODUCT_LIST.innerHTML = '<tr><td colspan="6" style="color: red; text-align: center;">Erro ao carregar produtos. Verifique o console.</td></tr>';
+                });
+        }
+
+        // Lógica de Submissão do Formulário (Criar ou Atualizar)
+        FORM.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const productId = document.getElementById('product-id').value;
+            const isUpdate = productId !== '';
+            const method = isUpdate ? 'PUT' : 'POST';
+            const url = isUpdate ? `${API_URL}${productId}/` : API_URL;
+
+            const data = {
+                nome: document.getElementById('nome').value,
+                descricao: document.getElementById('descricao').value,
+                // Converte para número para enviar ao backend
+                preco: parseFloat(document.getElementById('preco').value), 
+                quantidade: parseInt(document.getElementById('quantidade').value),
+            };
+
+            fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': CSRF_TOKEN,
+                },
+                body: JSON.stringify(data),
+            })
+            .then(response => {
+                if (response.status === 204) { // DELETE success (já tratado no listener de exclusão)
+                    return {};
+                }
+                return response.json().then(data => {
+                    if (!response.ok) {
+                        throw data; // Lança o erro para o bloco catch
+                    }
+                    return data;
+                });
+            })
+            .then(data => {
+                clearForm();
+                loadProducts(); // Recarrega a lista após sucesso
+            })
+            .catch(errorData => {
+                console.error('Erro na operação:', errorData);
+                if (errorData.errors) {
+                    displayErrors(errorData.errors); // Exibe erros de validação do backend
+                } else {
+                    FORM_ERRORS.innerHTML = `Erro: ${errorData.error || 'Ocorreu um erro desconhecido.'}`;
+                }
+            });
+        });
+
+        // Lógica de Edição (Preencher formulário)
+        PRODUCT_LIST.addEventListener('click', function(e) {
+            if (e.target.classList.contains('edit')) {
+                const button = e.target;
+                document.getElementById('product-id').value = button.dataset.id;
+                document.getElementById('nome').value = button.dataset.nome;
+                // Trata o caso de descrição ser nula
+                document.getElementById('descricao').value = button.dataset.descricao === 'null' ? '' : button.dataset.descricao; 
+                document.getElementById('preco').value = button.dataset.preco;
+                document.getElementById('quantidade').value = button.dataset.quantidade;
+
+                FORM_TITLE.textContent = `Editar Produto #${button.dataset.id}`;
+                SUBMIT_BUTTON.textContent = 'Atualizar Produto';
+                CANCEL_BUTTON.style.display = 'inline-block';
+                FORM_ERRORS.innerHTML = '';
+            }
+        });
+
+        // Lógica de Exclusão
+        PRODUCT_LIST.addEventListener('click', function(e) {
+            if (e.target.classList.contains('delete')) {
+                const productId = e.target.dataset.id;
+                
+                // Confirmação de exclusão (Requisito 2 do Frontend)
+                if (confirm(`Tem certeza que deseja excluir o produto #${productId}?`)) {
+                    fetch(`${API_URL}${productId}/`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRFToken': CSRF_TOKEN,
+                        },
+                    })
+                    .then(response => {
+                        if (response.status === 204) { // 204 No Content = Sucesso
+                            loadProducts();
+                            clearForm();
+                        } else {
+                            return response.json().then(data => {
+                                throw data;
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erro ao excluir produto:', error);
+                        alert(`Erro ao excluir produto: ${error.error || 'Ocorreu um erro desconhecido.'}`);
+                    });
+                }
+            }
+        });
+
+        // Lógica de Pesquisa
+        SEARCH_BUTTON.addEventListener('click', function() {
+            const query = SEARCH_INPUT.value.trim();
+            const searchUrl = `/api/produtos/search/?q=${encodeURIComponent(query)}`;
+            loadProducts(searchUrl);
+        });
+
+        // Lógica de Limpar Pesquisa
+        CLEAR_SEARCH_BUTTON.addEventListener('click', function() {
+            SEARCH_INPUT.value = '';
+            loadProducts(); // Recarrega todos os produtos
+        });
+
+        // Lógica de Cancelar Edição
+        CANCEL_BUTTON.addEventListener('click', clearForm);
+
+        // Carregar produtos ao iniciar a página
+        document.addEventListener('DOMContentLoaded', loadProducts);
+    </script>
+</body>
+</html>
