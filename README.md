@@ -7,7 +7,7 @@ Siga as instruções abaixo para rodar o projeto localmente:
 Pré-requisitos
 
 Python 3.11+
-
+VS Code
 Git
 
 1. Clonar o repositório
