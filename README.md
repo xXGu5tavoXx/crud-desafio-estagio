@@ -39,6 +39,7 @@ Esta seção demonstra a capacidade de depuração e resolução de problemas, f
 ```bash
 git clone https://github.com/xXGu5tavoXx/crud-desafio-estagio.git
 cd crud_challenge
+
 2. Criar e Ativar o Ambiente Virtual
 Bash
 # Cria o ambiente virtual
@@ -46,17 +47,21 @@ python -m venv venv
 
 # Ativa o ambiente virtual (Windows PowerShell )
 venv\Scripts\activate
+
 3. Instalar as Dependências
 Com o ambiente virtual ativado:
 Bash
 pip install -r requirements.txt
+
 4. Aplicar as Migrações
 Bash
 python manage.py migrate
+
 5. Executar o Servidor
 Bash
 python manage.py runserver
+
 6. Acessar no Navegador
 O projeto estará acessível em:
-Plain Text
+
 http://localhost:8000/
