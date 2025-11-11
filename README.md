@@ -20,8 +20,8 @@ Python 3.11+
 Git
 
 1. Clonar o repositório
-git clone https://github.com/SEU-USUARIO/SEU-REPO.git
-cd crud_challenge
+REPO.git
+git clone https://github.com/xXGu5tavoXx/crud-desafio-estagio.git
 
 2. Criar e ativar o ambiente virtual
 
